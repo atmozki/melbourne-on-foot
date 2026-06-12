@@ -1,5 +1,7 @@
 # Melbourne on Foot
 
+**Live dashboard: [melbourne-on-foot-atmozki.streamlit.app](https://melbourne-on-foot-atmozki.streamlit.app)**
+
 Melbourne has been counting footsteps since 2009. Sensors above street corners across the CBD log how many people walk past every hour, and the city publishes the feed as open data. This project takes that feed end to end: a Python ingestion pipeline, a DuckDB warehouse modelled with dbt, and a Streamlit dashboard on top, refreshed nightly by GitHub Actions.
 
 ![Dashboard](docs/dashboard.png)

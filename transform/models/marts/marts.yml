@@ -1,0 +1,50 @@
+version: 2
+
+models:
+  - name: fct_hourly_counts
+    description: Hourly grain fact table behind every mart.
+    columns:
+      - name: observation_id
+        data_tests:
+          - unique
+          - not_null
+      - name: location_id
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_sensors')
+                field: location_id
+              config:
+                severity: warn
+
+  - name: dim_sensors
+    description: Counting locations with coordinates and activity bounds.
+    columns:
+      - name: location_id
+        data_tests:
+          - unique
+          - not_null
+
+  - name: mart_daily_location
+    description: Daily totals per location, exported for the dashboard.
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns:
+              - location_id
+              - sensing_date
+    columns:
+      - name: daily_count
+        data_tests:
+          - not_null
+
+  - name: mart_hourly_profile
+    description: Trailing 90 day hourly averages per location and weekday.
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns:
+              - location_id
+              - iso_day_of_week
+              - hour_of_day

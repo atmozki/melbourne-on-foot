@@ -1,0 +1,7 @@
+# Dashboard dependencies (Streamlit Community Cloud installs from this file)
+streamlit>=1.40
+duckdb>=1.0
+pandas>=2.2
+pyarrow>=16
+plotly>=5.22
+pydeck>=0.9

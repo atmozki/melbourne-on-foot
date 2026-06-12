@@ -1,0 +1,7 @@
+melbourne_on_foot:
+  target: dev
+  outputs:
+    dev:
+      type: duckdb
+      path: ../data/warehouse.duckdb
+      threads: 4

@@ -1,0 +1,18 @@
+version: 2
+
+sources:
+  - name: raw
+    description: >
+      Parquet files written by pipeline/ingest.py from the City of Melbourne
+      open data API. Paths are relative to the transform directory, so run
+      dbt from here.
+    schema: main
+    tables:
+      - name: counts
+        description: Hourly pedestrian counts, one Parquet file per month.
+        meta:
+          external_location: "read_parquet('../data/raw/counts/counts_*.parquet')"
+      - name: sensors
+        description: Counting sensor locations and metadata, fully refreshed each run.
+        meta:
+          external_location: "read_parquet('../data/raw/sensors.parquet')"

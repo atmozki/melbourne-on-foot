@@ -1,0 +1,6 @@
+# Extra dependencies for the ingestion and transform stages
+requests>=2.31
+duckdb>=1.0
+pyarrow>=16
+dbt-core>=1.8
+dbt-duckdb>=1.8

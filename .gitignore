@@ -1,0 +1,25 @@
+# environments
+.venv/
+__pycache__/
+*.pyc
+
+# local data layers (marts are committed, raw and warehouse are rebuilt)
+data/raw/
+data/warehouse.duckdb*
+
+# dbt artifacts
+transform/target/
+transform/dbt_packages/
+transform/logs/
+logs/
+
+# secrets and OS noise
+.streamlit/secrets.toml
+.DS_Store
+
+# local tooling
+.claude/
+transform/.user.yml
+
+# personal build notes
+docs/WRITEUP.md

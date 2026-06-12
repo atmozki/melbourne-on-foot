@@ -1,0 +1,40 @@
+version: 2
+
+models:
+  - name: stg_counts
+    description: Typed, deduplicated hourly pedestrian counts.
+    columns:
+      - name: observation_id
+        description: Unique id per sensor reading from the source system.
+        data_tests:
+          - unique
+          - not_null
+      - name: location_id
+        data_tests:
+          - not_null
+      - name: hour_of_day
+        data_tests:
+          - dbt_utils.accepted_range:
+              arguments:
+                min_value: 0
+                max_value: 23
+      - name: pedestrian_count
+        data_tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              arguments:
+                min_value: 0
+
+  - name: stg_sensors
+    description: One row per counting location.
+    columns:
+      - name: location_id
+        data_tests:
+          - unique
+          - not_null
+      - name: latitude
+        data_tests:
+          - not_null
+      - name: longitude
+        data_tests:
+          - not_null

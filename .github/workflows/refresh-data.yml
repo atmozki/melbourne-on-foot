@@ -1,9 +1,9 @@
-name: Nightly data refresh
+name: Weekly data refresh
 
 on:
   schedule:
-    # 17:30 UTC is 3:30am in Melbourne, after the previous day's counts land
-    - cron: "30 17 * * *"
+    # 17:30 UTC Sunday is 3:30am Monday in Melbourne, after Sunday's counts land
+    - cron: "30 17 * * 0"
   workflow_dispatch:
 
 permissions:

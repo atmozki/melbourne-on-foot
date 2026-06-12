@@ -2,7 +2,7 @@
 
 **Live dashboard: [melbourne-on-foot-atmozki.streamlit.app](https://melbourne-on-foot-atmozki.streamlit.app)**
 
-Melbourne has been counting footsteps since 2009. Sensors above street corners across the CBD log how many people walk past every hour, and the city publishes the feed as open data. This project takes that feed end to end: a Python ingestion pipeline, a DuckDB warehouse modelled with dbt, and a Streamlit dashboard on top, refreshed nightly by GitHub Actions.
+Melbourne has been counting footsteps since 2009. Sensors above street corners across the CBD log how many people walk past every hour, and the city publishes the feed as open data. This project takes that feed end to end: a Python ingestion pipeline, a DuckDB warehouse modelled with dbt, and a Streamlit dashboard on top, refreshed weekly by GitHub Actions.
 
 ![Dashboard](docs/dashboard.png)
 
@@ -42,7 +42,7 @@ Streamlit dashboard ... reads only the marts, deploys anywhere
 
 **Trust the data, not the calendar.** The newest day in the feed is usually still filling in. The dashboard anchors on the latest day with near-complete sensor coverage instead of blindly using yesterday, which avoids a misleading 99 percent drop in the headline numbers.
 
-**Tests live in dbt.** Uniqueness on observation ids, accepted ranges on hours and counts, referential integrity from facts to the sensor dimension. `dbt build` runs models and tests together, and the nightly refresh fails loudly if the source data goes weird.
+**Tests live in dbt.** Uniqueness on observation ids, accepted ranges on hours and counts, referential integrity from facts to the sensor dimension. `dbt build` runs models and tests together, and the scheduled refresh fails loudly if the source data goes weird.
 
 ## Data models
 
@@ -69,7 +69,7 @@ The first run backfills the full two year window, around 25 API calls and a coup
 
 ## Refresh schedule
 
-A GitHub Actions workflow runs the pipeline at 3:30am Melbourne time, after the previous day's counts land. If the marts changed, it commits them, which triggers a redeploy of the dashboard.
+A GitHub Actions workflow runs the pipeline every Monday at 3:30am Melbourne time, picking up the full week behind it. If the marts changed, it commits them, which triggers a redeploy of the dashboard. The cron line in `.github/workflows/refresh-data.yml` is the only thing to change for a different cadence.
 
 ## Data source
 

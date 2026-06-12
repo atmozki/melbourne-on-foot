@@ -132,7 +132,7 @@ daily = daily[daily["sensing_date"] <= latest_date]
 st.title("Melbourne on Foot")
 st.markdown(
     '<p class="hero-sub">Hourly pedestrian traffic from the City of Melbourne sensor '
-    "network, refreshed nightly. Ingestion in Python, models in dbt on DuckDB, served "
+    "network, refreshed weekly. Ingestion in Python, models in dbt on DuckDB, served "
     "with Streamlit.</p>",
     unsafe_allow_html=True,
 )

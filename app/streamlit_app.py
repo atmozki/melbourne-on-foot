@@ -79,6 +79,18 @@ st.markdown(
 
 
 @st.cache_data(ttl=3600, show_spinner=False)
+def load_forecast() -> tuple[pd.DataFrame, pd.DataFrame] | None:
+    fc_path = MARTS_DIR / "mart_forecast.parquet"
+    metrics_path = MARTS_DIR / "mart_forecast_metrics.parquet"
+    if not fc_path.exists() or not metrics_path.exists():
+        return None
+    fc = pd.read_parquet(fc_path)
+    fc["sensing_date"] = pd.to_datetime(fc["sensing_date"])
+    fc["ts"] = fc["sensing_date"] + pd.to_timedelta(fc["hour_of_day"], unit="h")
+    return fc, pd.read_parquet(metrics_path)
+
+
+@st.cache_data(ttl=3600, show_spinner=False)
 def load_marts() -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
     con = duckdb.connect()
     daily = con.sql(
@@ -132,8 +144,8 @@ daily = daily[daily["sensing_date"] <= latest_date]
 st.title("Melbourne on Foot")
 st.markdown(
     '<p class="hero-sub">Hourly pedestrian traffic from the City of Melbourne sensor '
-    "network, refreshed weekly. Ingestion in Python, models in dbt on DuckDB, served "
-    "with Streamlit.</p>",
+    "network, refreshed weekly. Ingestion in Python, models in dbt on DuckDB, a "
+    "LightGBM forecast of the week ahead, served with Streamlit.</p>",
     unsafe_allow_html=True,
 )
 st.markdown(
@@ -286,6 +298,75 @@ fig = base_layout(fig, height=360)
 fig.update_yaxes(tickformat="~s")
 st.plotly_chart(fig, width="stretch", config={"displayModeBar": False})
 
+# ---------------------------------------------------------------- forecast
+loaded_forecast = load_forecast()
+forecast, fc_metrics = loaded_forecast if loaded_forecast else (None, None)
+if forecast is not None:
+    forecast = forecast[forecast["sensing_date"] > latest_date]
+if forecast is not None and len(forecast):
+    st.subheader("The week ahead")
+    st.markdown(
+        '<p class="section-note">Gradient-boosted forecast of hourly pedestrian counts '
+        "for the next seven days, retrained on the full sensor history every weekly "
+        "refresh and scored against the last four weeks before publishing.</p>",
+        unsafe_allow_html=True,
+    )
+
+    hist = daily.groupby("sensing_date", as_index=False)["daily_count"].sum()
+    hist = hist[hist["sensing_date"] > latest_date - timedelta(days=42)]
+    daily_fc = forecast.groupby("sensing_date", as_index=False)["p50"].sum()
+    # Start the forecast trace from the last actual point so the line connects.
+    bridge = pd.DataFrame(
+        {"sensing_date": [latest_date], "p50": [hist["daily_count"].iloc[-1]]}
+    )
+    daily_fc = pd.concat([bridge, daily_fc], ignore_index=True)
+
+    fig = go.Figure()
+    fig.add_trace(
+        go.Scatter(
+            x=hist["sensing_date"],
+            y=hist["daily_count"],
+            mode="lines",
+            line=dict(color=GOLD, width=2.2),
+            hovertemplate="%{x|%a %d %b %Y}<br>%{y:,.0f} pedestrians<extra></extra>",
+        )
+    )
+    fig.add_trace(
+        go.Scatter(
+            x=daily_fc["sensing_date"],
+            y=daily_fc["p50"],
+            mode="lines+markers",
+            line=dict(color=GOLD, width=2.2, dash="dot"),
+            marker=dict(size=6, symbol="diamond", color=GOLD),
+            hovertemplate="%{x|%a %d %b %Y}<br>forecast: %{y:,.0f} pedestrians<extra></extra>",
+        )
+    )
+    fig.add_vline(x=latest_date, line=dict(color="rgba(255,255,255,0.18)", dash="dash"))
+    fig = base_layout(fig, height=340)
+    fig.update_yaxes(tickformat="~s")
+    st.plotly_chart(fig, width="stretch", config={"displayModeBar": False})
+
+    overall = fc_metrics[fc_metrics["scope"] == "overall"].set_index("method")
+    model_wape = overall.loc["model", "wape"]
+    naive_wape = overall.loc["seasonal_naive", "wape"]
+    coverage = overall.loc["model", "band_coverage"]
+
+    m1, m2, m3 = st.columns(3)
+    m1.metric(
+        "Backtest error, WAPE",
+        f"{model_wape:.1%}",
+        delta=f"{(1 - model_wape / naive_wape) * 100:+.0f}% vs seasonal-naive baseline",
+    )
+    m2.metric("80% band coverage", f"{coverage:.0%}")
+    m3.metric("Locations forecast", f"{forecast['location_id'].nunique()}")
+    st.markdown(
+        '<p class="section-note">WAPE is total absolute error over total pedestrians, '
+        "hourly grain. The baseline repeats the same hour from one week earlier. "
+        "Scores come from rolling-origin backtests on the four weeks the model never "
+        "saw during training.</p>",
+        unsafe_allow_html=True,
+    )
+
 # ---------------------------------------------------------------- rhythm heatmap
 st.subheader("The rhythm of the week")
 st.markdown(
@@ -382,6 +463,45 @@ with loc_col2:
     fig.update_layout(showlegend=True, legend=dict(orientation="h", y=1.1))
     fig.update_xaxes(tickvals=list(range(0, 24, 3)), ticktext=[f"{h:02d}:00" for h in range(0, 24, 3)])
     st.plotly_chart(fig, width="stretch", config={"displayModeBar": False})
+
+if forecast is not None and len(loc_daily):
+    loc_fc = forecast[forecast["location_id"] == loc_daily["location_id"].iloc[0]]
+    loc_fc = loc_fc.sort_values("ts")
+    if len(loc_fc):
+        st.markdown("**The week ahead, hour by hour**")
+        st.markdown(
+            '<p class="section-note">Median forecast with the model\'s 10th to 90th '
+            "percentile range.</p>",
+            unsafe_allow_html=True,
+        )
+        fig = go.Figure()
+        fig.add_trace(
+            go.Scatter(
+                x=loc_fc["ts"], y=loc_fc["p90"], mode="lines",
+                line=dict(width=0), hoverinfo="skip",
+            )
+        )
+        fig.add_trace(
+            go.Scatter(
+                x=loc_fc["ts"], y=loc_fc["p10"], mode="lines",
+                line=dict(width=0), fill="tonexty", fillcolor=GOLD_SOFT,
+                hoverinfo="skip",
+            )
+        )
+        fig.add_trace(
+            go.Scatter(
+                x=loc_fc["ts"],
+                y=loc_fc["p50"],
+                mode="lines",
+                line=dict(color=GOLD, width=2.2),
+                customdata=loc_fc[["p10", "p90"]],
+                hovertemplate="%{x|%a %d %b, %H:00}<br>%{y:,.0f} pedestrians "
+                "(%{customdata[0]:,.0f}–%{customdata[1]:,.0f})<extra></extra>",
+            )
+        )
+        fig = base_layout(fig, height=300)
+        fig.update_yaxes(tickformat="~s")
+        st.plotly_chart(fig, width="stretch", config={"displayModeBar": False})
 
 # ---------------------------------------------------------------- footer
 st.divider()

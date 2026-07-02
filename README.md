@@ -2,7 +2,7 @@
 
 **Live dashboard: [melbourne-on-foot-atmozki.streamlit.app](https://melbourne-on-foot-atmozki.streamlit.app)**
 
-Melbourne has been counting footsteps since 2009. Sensors above street corners across the CBD log how many people walk past every hour, and the city publishes the feed as open data. This project takes that feed end to end: a Python ingestion pipeline, a DuckDB warehouse modelled with dbt, and a Streamlit dashboard on top, refreshed weekly by GitHub Actions.
+Melbourne has been counting footsteps since 2009. Sensors above street corners across the CBD log how many people walk past every hour, and the city publishes the feed as open data. This project takes that feed end to end: a Python ingestion pipeline, a DuckDB warehouse modelled with dbt, a LightGBM model that forecasts the week ahead for every sensor, and a Streamlit dashboard on top, retrained and refreshed weekly by GitHub Actions.
 
 ![Dashboard](docs/dashboard.png)
 
@@ -22,8 +22,10 @@ data/raw/ ............ raw layer, rebuilt from the API, never committed
 data/warehouse.duckdb . DuckDB warehouse, local only
    |
    |  pipeline/export_marts.py
+   |  ml/forecast.py
+   |  backtest, retrain, predict 7 days ahead
    v
-data/marts/ .......... three small Parquet files, committed to the repo
+data/marts/ .......... five small Parquet files, committed to the repo
    |
    |  app/streamlit_app.py
    v
@@ -44,6 +46,12 @@ Streamlit dashboard ... reads only the marts, deploys anywhere
 
 **Tests live in dbt.** Uniqueness on observation ids, accepted ranges on hours and counts, referential integrity from facts to the sensor dimension. `dbt build` runs models and tests together, and the scheduled refresh fails loudly if the source data goes weird.
 
+**Forecasts are precomputed, not served.** The weekly pipeline trains three LightGBM quantile models (10th, 50th and 90th percentile) on the full two year history and writes next week's hourly predictions to a Parquet mart. The dashboard just reads the file: no model artifact to host, no inference at request time, and the free tier stays free.
+
+**Only features the future can know.** The model predicts up to 7 days out, so every lag is at least a week old and week-aligned: the same hour 7, 14, 21 and 28 days back, plus calendar features and Victorian public holidays. Counts are trained on a log scale so the busy corners don't drown out the quiet ones, and quantiles survive the transform because log is monotone.
+
+**The baseline keeps the model honest.** Before publishing, a rolling-origin backtest replays the last four weekly releases, training only on data before each cutoff, and scores the median forecast against a seasonal-naive baseline (same hour, one week earlier). The scores ship with the forecast and the dashboard displays them, including how often the 80% band actually contains the truth.
+
 ## Data models
 
 | Model | Grain | Purpose |
@@ -54,6 +62,8 @@ Streamlit dashboard ... reads only the marts, deploys anywhere
 | `dim_sensors` | one row per location | coordinates, status, activity bounds |
 | `mart_daily_location` | one row per location day | trends, rankings, the map |
 | `mart_hourly_profile` | location x weekday x hour | heatmap and hourly profiles, trailing 90 days |
+| `mart_forecast` | location x future date x hour | next 7 days, p10/p50/p90, from `ml/forecast.py` |
+| `mart_forecast_metrics` | one row per backtest fold x method | model vs baseline MAE, WAPE, band coverage |
 
 ## Running it yourself
 
@@ -65,11 +75,11 @@ python run_pipeline.py
 streamlit run app/streamlit_app.py
 ```
 
-The first run backfills the full two year window, around 25 API calls and a couple of minutes. After that, runs only touch the trailing week. The dashboard works straight away even without running the pipeline, since the marts are committed.
+The first run backfills the full two year window, around 25 API calls and a couple of minutes, then trains and backtests the forecaster, which takes a few minutes more. After that, runs only touch the trailing week. The dashboard works straight away even without running the pipeline, since the marts are committed.
 
 ## Refresh schedule
 
-A GitHub Actions workflow runs the pipeline every Monday at 3:30am Melbourne time, picking up the full week behind it. If the marts changed, it commits them, which triggers a redeploy of the dashboard. The cron line in `.github/workflows/refresh-data.yml` is the only thing to change for a different cadence.
+A GitHub Actions workflow runs the pipeline every Monday at 3:30am Melbourne time, picking up the full week behind it: fresh data in, dbt tests, model retrained, forecasts and backtest scores rewritten. If the marts changed, it commits them, which triggers a redeploy of the dashboard. The cron line in `.github/workflows/refresh-data.yml` is the only thing to change for a different cadence.
 
 ## Data source
 

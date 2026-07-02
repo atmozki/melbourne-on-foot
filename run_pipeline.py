@@ -1,4 +1,4 @@
-"""Run the whole pipeline: ingest, transform, export.
+"""Run the whole pipeline: ingest, transform, export, forecast.
 
     python run_pipeline.py [--full]
 
@@ -7,6 +7,7 @@ Equivalent to running each stage by hand:
     python -m pipeline.ingest
     dbt build (from the transform directory)
     python -m pipeline.export_marts
+    python -m ml.forecast
 """
 
 from __future__ import annotations
@@ -40,6 +41,8 @@ def main() -> None:
     run([dbt, "build", "--profiles-dir", "."], cwd=config.TRANSFORM_DIR)
 
     run([sys.executable, "-m", "pipeline.export_marts"], cwd=config.PROJECT_ROOT)
+
+    run([sys.executable, "-m", "ml.forecast"], cwd=config.PROJECT_ROOT)
     print("\nPipeline finished.")
 
 

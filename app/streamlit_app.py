@@ -5,6 +5,7 @@ Run from the repo root with: streamlit run app/streamlit_app.py
 """
 
 from datetime import timedelta
+from html import escape
 from pathlib import Path
 
 import duckdb
@@ -171,6 +172,7 @@ last7_total = last7["daily_count"].sum()
 prior7_total = prior7["daily_count"].sum()
 
 busiest = last7.groupby("location_name")["daily_count"].sum().sort_values(ascending=False)
+busiest_name = escape(str(busiest.index[0])) if len(busiest) else "n/a"
 
 c1, c2, c3, c4 = st.columns(4)
 c1.metric(
@@ -187,7 +189,7 @@ c2.metric(
 )
 c3.markdown(
     '<div class="kpi-card"><p class="kpi-label">Busiest spot this week</p>'
-    f'<p class="kpi-name">{busiest.index[0] if len(busiest) else "n/a"}</p></div>',
+    f'<p class="kpi-name">{busiest_name}</p></div>',
     unsafe_allow_html=True,
 )
 c4.metric("Sensors reporting", f"{yesterday['location_id'].nunique()}")

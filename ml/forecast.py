@@ -145,11 +145,12 @@ def main() -> None:
         flush=True,
     )
 
-    print("Training final models on the full history...", flush=True)
+    print("Training final models on history through the anchor...", flush=True)
+    final_train = trainable(feat[feat["sensing_date"] <= anchor])
     future = features.future_frame(obs, anchor, args.horizon_days)
     future = future[future["lag_mean_4w"].notna()]
     forecast = pd.concat(
-        [future[["location_id", "sensing_date", "hour_of_day"]], predict(fit_all(trainable(feat)), future)],
+        [future[["location_id", "sensing_date", "hour_of_day"]], predict(fit_all(final_train), future)],
         axis=1,
     )
     forecast["location_id"] = forecast["location_id"].astype("int32")

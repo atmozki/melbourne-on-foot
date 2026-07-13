@@ -301,13 +301,26 @@ st.plotly_chart(fig, width="stretch", config={"displayModeBar": False})
 # ---------------------------------------------------------------- forecast
 loaded_forecast = load_forecast()
 forecast, fc_metrics = loaded_forecast if loaded_forecast else (None, None)
-if forecast is not None:
-    forecast = forecast[forecast["sensing_date"] > latest_date]
+today = pd.Timestamp.now(tz="Australia/Melbourne").normalize().tz_localize(None)
+forecast_had_rows = forecast is not None and len(forecast) > 0
+forecast_end = forecast["sensing_date"].max() if forecast_had_rows else None
+if forecast_had_rows:
+    forecast = forecast[
+        (forecast["sensing_date"] > latest_date)
+        & (forecast["sensing_date"] >= today)
+    ]
+
+if forecast_had_rows and not len(forecast):
+    st.info(
+        f"The latest forecast ended on {forecast_end:%d %b %Y} or has been overtaken "
+        "by newer actual data. It will return after the next weekly refresh."
+    )
+
 if forecast is not None and len(forecast):
     st.subheader("The week ahead")
     st.markdown(
-        '<p class="section-note">Gradient-boosted forecast of hourly pedestrian counts '
-        "for the next seven days, retrained on the full sensor history every weekly "
+        f'<p class="section-note">Gradient-boosted hourly forecast through '
+        f'{forecast["sensing_date"].max():%d %b %Y}, retrained on the sensor history every weekly '
         "refresh and scored against the last four weeks before publishing.</p>",
         unsafe_allow_html=True,
     )
@@ -350,6 +363,14 @@ if forecast is not None and len(forecast):
     model_wape = overall.loc["model", "wape"]
     naive_wape = overall.loc["seasonal_naive", "wape"]
     coverage = overall.loc["model", "band_coverage"]
+    active_locations = daily.loc[
+        daily["sensing_date"] > latest_date - timedelta(days=14), "location_id"
+    ].nunique()
+    forecast_locations = forecast["location_id"].nunique()
+    forecast_start = max(today, latest_date + pd.Timedelta(days=1))
+    forecast_days = (forecast["sensing_date"].max() - forecast_start).days + 1
+    expected_rows = active_locations * forecast_days * 24
+    row_coverage = len(forecast) / expected_rows if expected_rows else 0
 
     m1, m2, m3 = st.columns(3)
     m1.metric(
@@ -358,7 +379,12 @@ if forecast is not None and len(forecast):
         delta=f"{(1 - model_wape / naive_wape) * 100:+.0f}% vs seasonal-naive baseline",
     )
     m2.metric("80% band coverage", f"{coverage:.0%}")
-    m3.metric("Locations forecast", f"{forecast['location_id'].nunique()}")
+    m3.metric(
+        "Forecast coverage",
+        f"{row_coverage:.1%}",
+        delta=f"{forecast_locations} of {active_locations} active locations",
+        delta_color="off",
+    )
     st.markdown(
         '<p class="section-note">WAPE is total absolute error over total pedestrians, '
         "hourly grain. The baseline repeats the same hour from one week earlier. "

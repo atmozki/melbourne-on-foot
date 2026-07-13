@@ -80,7 +80,10 @@ def future_frame(obs: pd.DataFrame, anchor: pd.Timestamp, horizon_days: int) -> 
     Active means the sensor reported within the two weeks before the anchor;
     dead sensors get no forecast rather than a confident guess.
     """
-    recent = obs[obs["sensing_date"] > anchor - pd.Timedelta(days=14)]
+    recent = obs[
+        (obs["sensing_date"] > anchor - pd.Timedelta(days=14))
+        & (obs["sensing_date"] <= anchor)
+    ]
     dates = pd.date_range(anchor + pd.Timedelta(days=1), periods=horizon_days, freq="D")
     frame = pd.MultiIndex.from_product(
         [sorted(recent["location_id"].unique()), dates, range(24)],

@@ -79,7 +79,7 @@ The first run backfills the full two year window, around 25 API calls and a coup
 
 ## Refresh schedule
 
-A GitHub Actions workflow runs the pipeline every Monday at 3:30am Melbourne time, picking up the full week behind it: fresh data in, dbt tests, model retrained, forecasts and backtest scores rewritten. If the marts changed, it commits them, which triggers a redeploy of the dashboard. The cron line in `.github/workflows/refresh-data.yml` is the only thing to change for a different cadence.
+A GitHub Actions workflow runs the pipeline every Monday at 3:30am AEST (4:30am during daylight saving), picking up the full week behind it: fresh data in, dbt tests, model retrained, forecasts and backtest scores rewritten. Raw partitions are cached between successful runs so ingestion can refresh incrementally; a cache miss safely backfills the available history. If the marts changed, it commits them, which triggers a redeploy of the dashboard. The cron line in `.github/workflows/refresh-data.yml` is the only thing to change for a different cadence.
 
 ## Data source
 

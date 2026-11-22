@@ -2,12 +2,16 @@ name: Weekly data refresh
 
 on:
   schedule:
-    # 17:30 UTC Sunday is 3:30am Monday in Melbourne, after Sunday's counts land
+    # Monday 03:30 AEST / 04:30 AEDT in Melbourne, after Sunday's counts land
     - cron: "30 17 * * 0"
   workflow_dispatch:
 
 permissions:
   contents: write
+
+concurrency:
+  group: weekly-data-refresh
+  cancel-in-progress: false
 
 jobs:
   refresh:
@@ -22,6 +26,17 @@ jobs:
 
       - name: Install dependencies
         run: pip install -r requirements.txt -r pipeline/requirements.txt
+
+      - name: Check ingestion regressions
+        run: python -m unittest discover -s tests -v
+
+      - name: Restore raw data for incremental ingestion
+        uses: actions/cache@v4
+        with:
+          path: data/raw
+          key: raw-data-v1-${{ runner.os }}-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: |
+            raw-data-v1-${{ runner.os }}-
 
       - name: Run pipeline
         run: python run_pipeline.py

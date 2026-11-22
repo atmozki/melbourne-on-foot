@@ -88,7 +88,7 @@ def stored_max_date() -> date | None:
         return None
     result = duckdb.sql(
         f"select max(sensing_date) from read_parquet('{config.COUNTS_DIR.as_posix()}/counts_*.parquet')"
-    ).fetchone()[0]
+    ).fetchall()[0][0]
     if result is None:
         return None
     return result if isinstance(result, date) else result.date()
@@ -127,7 +127,7 @@ def fetch_counts(session: requests.Session, full: bool = False) -> None:
 
     rows = duckdb.sql(
         f"select count(*) from read_parquet('{config.COUNTS_DIR.as_posix()}/counts_*.parquet')"
-    ).fetchone()[0]
+    ).fetchall()[0][0]
     log.info("Raw counts on disk: %s rows", f"{rows:,}")
 
 
